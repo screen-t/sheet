@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Equity Ledger</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="sr-status" class="visually-hidden" role="status" aria-live="polite"></div>
+
+<header class="masthead">
+  <div class="masthead-top">
+    <div class="masthead-title">
+      <h1 id="app-title">Equity Ledger</h1>
+      <p class="masthead-dateline" id="masthead-dateline"></p>
+    </div>
+    <div class="masthead-actions">
+      <button type="button" id="btn-export" class="btn-ghost btn-on-dark">Export backup</button>
+      <label class="btn-ghost btn-on-dark file-label">
+        Import backup
+        <input type="file" id="file-import" accept="application/json" class="visually-hidden" />
+      </label>
+    </div>
+  </div>
+
+  <div class="ownership-wrap">
+    <div id="ownership-strip" class="ownership-strip" aria-hidden="true"></div>
+    <ul id="ownership-legend" class="ownership-legend"></ul>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Equity Ledger sections">
+  <button type="button" role="tab" id="tab-sheet-btn" aria-selected="true" aria-controls="panel-sheet" class="tab-btn active">The Sheet</button>
+  <button type="button" role="tab" id="tab-how-btn" aria-selected="false" tabindex="-1" aria-controls="panel-how" class="tab-btn">How It Works</button>
+  <button type="button" role="tab" id="tab-ideas-btn" aria-selected="false" tabindex="-1" aria-controls="panel-ideas" class="tab-btn">Ideas &amp; Roadmap</button>
+</nav>
+
+<main>
+
+<!-- ======================= TAB 1 — THE SHEET ======================= -->
+<section id="panel-sheet" role="tabpanel" aria-labelledby="tab-sheet-btn" class="panel">
+
+  <section class="block" id="section-insights">
+    <h2>At a glance</h2>
+    <div id="insights-row" class="insights-row"></div>
+    <div id="never-logged-note" class="never-logged-note" hidden></div>
+  </section>
+
+  <section class="block" id="section-setup">
+    <h2>Company setup</h2>
+    <p class="muted">Set this once. The founder's percentage and the team pool always add up to 100 — change one and the other follows.</p>
+    <form id="form-setup" class="inline-form">
+      <fieldset>
+        <legend class="visually-hidden">Company setup</legend>
+        <div class="field">
+          <label for="cfg-company">Company name</label>
+          <input type="text" id="cfg-company" name="company" maxlength="80" placeholder="e.g. Puteware" />
+        </div>
+        <div class="field">
+          <label for="cfg-founder-name">Founder name</label>
+          <input type="text" id="cfg-founder-name" name="founderName" maxlength="60" placeholder="e.g. Jivak" />
+        </div>
+        <div class="field field-narrow">
+          <label for="cfg-founder-pct">Founder equity %</label>
+          <input type="number" id="cfg-founder-pct" name="founderPct" min="0" max="100" step="0.1" inputmode="decimal" />
+        </div>
+        <div class="field field-narrow">
+          <label for="cfg-pool-pct">Team pool %</label>
+          <input type="number" id="cfg-pool-pct" name="poolPct" min="0" max="100" step="0.1" inputmode="decimal" />
+        </div>
+      </fieldset>
+    </form>
+  </section>
+
+  <section class="block" id="section-roster">
+    <h2>Team roster</h2>
+    <p class="muted">Everyone added here is eligible for a share of the team pool. Vesting start defaults to their join date — change it if it should differ (e.g. they started as a contractor first).</p>
+
+    <form id="form-member" class="inline-form" novalidate>
+      <fieldset>
+        <legend class="visually-hidden">Add or edit a teammate</legend>
+        <input type="hidden" id="m-editid" />
+        <div class="field">
+          <label for="m-name">Name</label>
+          <input type="text" id="m-name" name="name" required maxlength="60" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="m-role">Role / title</label>
+          <input type="text" id="m-role" name="role" maxlength="60" placeholder="e.g. Backend Developer" autocomplete="off" />
+        </div>
+        <div class="field field-narrow">
+          <label for="m-join">Joined on</label>
+          <input type="date" id="m-join" name="joinDate" required />
+        </div>
+        <div class="field field-narrow">
+          <label for="m-vest">Vesting start</label>
+          <input type="date" id="m-vest" name="vestingStart" required />
+        </div>
+        <div class="field field-actions">
+          <button type="submit" id="m-submit" class="btn-primary">Add teammate</button>
+          <button type="button" id="m-cancel-edit" class="btn-ghost" hidden>Cancel edit</button>
+        </div>
+      </fieldset>
+    </form>
+
+    <div class="table-wrapper">
+      <table class="ledger-table tbl-roster">
+        <thead>
+          <tr><th>Name</th><th>Role</th><th>Joined</th><th>Vesting start</th><th>Vesting status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="roster-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="section-worklog">
+    <h2>Work log</h2>
+    <p class="muted">Log a task or project as soon as it starts. A score only appears once you set a Quality rating — unreviewed work never counts toward equity on its own.</p>
+
+    <form id="form-entry" class="inline-form" novalidate>
+      <fieldset>
+        <legend class="visually-hidden">Log a task or project</legend>
+        <input type="hidden" id="e-editid" />
+        <div class="field">
+          <label for="e-member">Teammate</label>
+          <select id="e-member" name="member" required></select>
+        </div>
+        <div class="field field-wide">
+          <label for="e-title">Title</label>
+          <input type="text" id="e-title" name="title" required maxlength="120" placeholder="e.g. Rebuilt the onboarding flow" />
+        </div>
+        <div class="field field-narrow">
+          <label for="e-type">Task or Project</label>
+          <select id="e-type" name="type">
+            <option value="Task">Task</option>
+            <option value="Project">Project</option>
+          </select>
+        </div>
+        <div class="field field-narrow">
+          <label for="e-priority">Priority</label>
+          <select id="e-priority" name="priority">
+            <option value="Low">Low</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div class="field field-narrow">
+          <label for="e-initiative">Who initiated it</label>
+          <select id="e-initiative" name="initiative">
+            <option value="Assigned">Assigned by someone</option>
+            <option value="Self-Initiated">Self-initiated</option>
+          </select>
+        </div>
+        <div class="field field-narrow">
+          <label for="e-quality">Quality (after review)</label>
+          <select id="e-quality" name="quality">
+            <option value="">Not rated yet</option>
+            <option value="1">1 — Poor</option>
+            <option value="2">2 — Below expectations</option>
+            <option value="3">3 — Met expectations</option>
+            <option value="4">4 — Exceeded expectations</option>
+            <option value="5">5 — Outstanding</option>
+          </select>
+        </div>
+        <div class="field field-narrow">
+          <label for="e-est">Estimated hours</label>
+          <input type="number" id="e-est" name="estHours" min="0" step="0.5" inputmode="decimal" placeholder="optional" />
+        </div>
+        <div class="field field-narrow">
+          <label for="e-actual">Actual hours</label>
+          <input type="number" id="e-actual" name="actualHours" min="0" step="0.5" inputmode="decimal" placeholder="optional" />
+        </div>
+        <div class="field field-narrow">
+          <label for="e-date">Date</label>
+          <input type="date" id="e-date" name="date" required />
+        </div>
+        <div class="field field-wide">
+          <label for="e-notes">Notes <span class="muted">(optional)</span></label>
+          <input type="text" id="e-notes" name="notes" maxlength="300" placeholder="context worth remembering" />
+        </div>
+        <div class="field field-actions">
+          <button type="submit" id="e-submit" class="btn-primary">Log work</button>
+          <button type="button" id="e-cancel-edit" class="btn-ghost" hidden>Cancel edit</button>
+        </div>
+      </fieldset>
+    </form>
+
+    <search class="filter-bar">
+      <div class="field field-narrow">
+        <label for="log-filter">Teammate</label>
+        <select id="log-filter"><option value="">All</option></select>
+      </div>
+      <div class="field field-narrow">
+        <label for="log-filter-status">Status</label>
+        <select id="log-filter-status">
+          <option value="">All</option>
+          <option value="pending">Awaiting review</option>
+          <option value="reviewed">Reviewed</option>
+        </select>
+      </div>
+      <div class="field field-narrow">
+        <label for="log-filter-type">Type</label>
+        <select id="log-filter-type">
+          <option value="">All</option>
+          <option value="Task">Task</option>
+          <option value="Project">Project</option>
+        </select>
+      </div>
+      <div class="field field-narrow">
+        <label for="log-filter-priority">Priority</label>
+        <select id="log-filter-priority">
+          <option value="">All</option>
+          <option value="Low">Low</option>
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+          <option value="Critical">Critical</option>
+        </select>
+      </div>
+      <div class="field field-wide">
+        <label for="log-search">Search title / notes</label>
+        <input type="search" id="log-search" placeholder="start typing…" />
+      </div>
+      <div class="field field-actions">
+        <button type="button" id="log-filter-clear" class="btn-ghost">Clear filters</button>
+      </div>
+    </search>
+    <p id="entries-count" class="muted"></p>
+
+    <div class="table-wrapper">
+      <table class="ledger-table tbl-entries">
+        <thead>
+          <tr><th>Date</th><th>Member</th><th>Title</th><th>Type</th><th>Priority</th><th>Initiative</th><th>Quality</th><th>Hours (est/actual)</th><th>Score</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="entries-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="section-deductions">
+    <h2>Deductions</h2>
+    <p class="muted">Every deduction needs a typed reason — visible to everyone, same as the points. No silent penalties.</p>
+
+    <form id="form-deduction" class="inline-form" novalidate>
+      <fieldset>
+        <legend class="visually-hidden">Record a deduction</legend>
+        <input type="hidden" id="d-editid" />
+        <div class="field">
+          <label for="d-member">Teammate</label>
+          <select id="d-member" name="member" required></select>
+        </div>
+        <div class="field field-wide">
+          <label for="d-category">Category</label>
+          <select id="d-category" name="category">
+            <option value="deadline_flagged">Missed deadline — flagged in advance</option>
+            <option value="deadline_silent">Missed deadline — no warning given</option>
+            <option value="process">Did not follow agreed process / rules</option>
+            <option value="rework">Required significant rework</option>
+            <option value="unresponsive">Unresponsive during work hours</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </div>
+        <div class="field field-wide" id="d-customlabel-wrap" hidden>
+          <label for="d-customlabel">Custom label</label>
+          <input type="text" id="d-customlabel" name="customLabel" maxlength="100" />
+        </div>
+        <div class="field field-narrow">
+          <label for="d-points">Points to deduct</label>
+          <input type="number" id="d-points" name="points" min="0" step="0.5" required inputmode="decimal" />
+        </div>
+        <div class="field field-wide">
+          <label for="d-note">Reason <span class="muted">(required)</span></label>
+          <input type="text" id="d-note" name="note" required maxlength="300" placeholder="what happened, specifically" />
+        </div>
+        <div class="field field-narrow">
+          <label for="d-date">Date</label>
+          <input type="date" id="d-date" name="date" required />
+        </div>
+        <div class="field field-actions">
+          <button type="submit" id="d-submit" class="btn-primary btn-danger-fill">Record deduction</button>
+          <button type="button" id="d-cancel-edit" class="btn-ghost" hidden>Cancel edit</button>
+        </div>
+      </fieldset>
+    </form>
+
+    <div class="table-wrapper">
+      <table class="ledger-table tbl-deductions">
+        <thead>
+          <tr><th>Date</th><th>Member</th><th>Category</th><th>Points</th><th>Reason</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="deductions-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="section-equity">
+    <h2>Live equity &amp; vesting</h2>
+    <p class="muted">This is the full cap-table preview: founder's fixed share plus the team pool, split by points earned so far. It is a live, working number — not final until a Plan Agreement is generated below.</p>
+    <div class="table-wrapper">
+      <table class="ledger-table tbl-equity">
+        <thead>
+          <tr><th>Name</th><th>Gross pts</th><th>Deducted</th><th>Net pts</th><th>Share of pool</th><th>Equity %</th><th>Vesting</th></tr>
+        </thead>
+        <tbody id="equity-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="section-agreements">
+    <h2>Plan agreements</h2>
+    <p class="muted">Generating an agreement freezes today's numbers into a dated, read-only record. The live sheet keeps running underneath for the next review period.</p>
+    <form id="form-agreement" class="inline-form">
+      <fieldset>
+        <legend class="visually-hidden">Generate a plan agreement</legend>
+        <div class="field field-wide">
+          <label for="a-title">Agreement title <span class="muted">(optional)</span></label>
+          <input type="text" id="a-title" name="title" maxlength="100" placeholder="e.g. Year 1 Equity Plan" />
+        </div>
+        <div class="field field-actions">
+          <button type="submit" class="btn-primary">Generate agreement snapshot</button>
+        </div>
+      </fieldset>
+    </form>
+    <div id="agreements-list" class="agreements-list"></div>
+  </section>
+
+  <section class="block" id="section-data">
+    <h2>Data &amp; backup</h2>
+    <p class="muted">This runs entirely in your browser — nothing is sent anywhere. That also means nothing survives clearing browser data unless you export it. Export a backup after every real session.</p>
+    <div class="data-actions">
+      <button type="button" id="btn-reset" class="btn-ghost btn-danger">Reset all data</button>
+    </div>
+  </section>
+
+</section>
+
+<!-- ======================= TAB 2 — HOW IT WORKS ======================= -->
+<section id="panel-how" role="tabpanel" aria-labelledby="tab-how-btn" class="panel" hidden>
+
+  <section class="block">
+    <h2>Why <span id="doc-founder-pool">85% founder, 15% team pool</span></h2>
+    <p>Pre-funding, the founder is carrying every risk the company has: unlimited personal liability in practice, the capital already put in, the idea and the original plan, and the fact that if this fails tomorrow, the team moves on to another job while the founder's name and time are the ones sunk into it. An 85/15 split is a common, defensible starting point at this stage — it rewards that asymmetric risk without pretending the team's contribution doesn't matter.</p>
+    <p>Two things worth knowing before you lock this number in:</p>
+    <ul>
+      <li><strong>It isn't permanent.</strong> If you raise outside funding later, a new investor's stake dilutes everyone's percentage proportionally (founder and team alike) — it doesn't eat into the team's 15% specifically.</li>
+      <li><strong>It's a target, not a grant.</strong> Nobody should receive their full computed percentage on day one — see Vesting below.</li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <h2>What a "point" actually is</h2>
+    <p>A point is not a mood score or a manager's gut feeling. It's the output of one fixed formula applied the same way to everyone, every time:</p>
+    <p class="formula-line">Score&nbsp;=&nbsp;Priority&nbsp;×&nbsp;Type&nbsp;×&nbsp;Quality&nbsp;×&nbsp;Initiative&nbsp;×&nbsp;Efficiency</p>
+    <p>Every entry's exact calculation is visible to whoever looks at it — click <strong>View</strong> on any row in the Work Log and you'll see the same five numbers multiplied together, in order, with the final total. Nothing is hidden in a black box.</p>
+
+    <div class="doc-grid">
+      <div>
+        <h3>Priority — how important was it</h3>
+        <table class="breakdown-table"><thead><tr><th>Level</th><th>Base points</th></tr></thead><tbody id="doc-priority-table"></tbody></table>
+      </div>
+      <div>
+        <h3>Type — task vs. project</h3>
+        <table class="breakdown-table"><thead><tr><th>Type</th><th>Multiplier</th></tr></thead><tbody id="doc-type-table"></tbody></table>
+        <p class="muted">A Project is scored on its own merits — it is <em>not</em> the sum of its child tasks. If you also log the individual tasks inside a project separately, score the project for the ownership/coordination of the whole thing, not as a duplicate of the task totals.</p>
+      </div>
+      <div>
+        <h3>Quality — the only subjective input</h3>
+        <table class="breakdown-table"><thead><tr><th>Rating</th><th>Multiplier</th></tr></thead><tbody id="doc-quality-table"></tbody></table>
+        <p class="muted">3★ ("met expectations") is the neutral baseline, not a punishment. This is the one number a reviewer judges — everything else in the formula is mechanical.</p>
+      </div>
+      <div>
+        <h3>Initiative — ownership bonus</h3>
+        <table class="breakdown-table"><thead><tr><th>Who started it</th><th>Multiplier</th></tr></thead><tbody id="doc-initiative-table"></tbody></table>
+        <p class="muted">Spotting and fixing something nobody asked for is a genuinely different signal than doing what you were told — it's rewarded, but modestly, so it can't be gamed by inventing busywork.</p>
+      </div>
+      <div>
+        <h3>Efficiency — estimated vs. actual hours</h3>
+        <p id="doc-efficiency-note" class="muted"></p>
+        <p class="muted">This is deliberately the <em>smallest</em> lever in the formula. An uncapped "speed" score is the easiest part of any system like this to game — rush the work or lowball the estimate and the number goes up. Capping it both ways means finishing fast earns a small bonus, finishing slow costs a small amount, and neither can swing the result on its own. If no estimate is logged, it simply has no effect.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Deductions — what loses points</h2>
+    <table class="breakdown-table"><thead><tr><th>Category</th><th>Default</th></tr></thead><tbody id="doc-deduction-table"></tbody></table>
+    <p>Notice the deliberate gap between the two deadline categories: missing a deadline after telling someone in advance costs far less than missing it silently. That's intentional — the system is built to reward honesty about being late over hiding it, because the second behavior is the one that actually damages a small team.</p>
+    <p>A member's points can't go below zero for equity purposes — deductions can wipe out a period's gains, but they can't put someone in negative equity. The raw (possibly negative) number still shows on their row for the record.</p>
+  </section>
+
+  <section class="block">
+    <h2>From points to equity %</h2>
+    <ol class="steps">
+      <li>Add up every scored work-log entry for a person → <strong>Gross points</strong>.</li>
+      <li>Subtract every deduction on their record → <strong>Net points</strong> (floored at zero).</li>
+      <li>Divide their net points by everyone's combined net points → their <strong>share</strong> of the pool.</li>
+      <li>Multiply that share by the size of the team pool → their <strong>equity %</strong>.</li>
+    </ol>
+    <p>This always adds up to exactly the pool size — if there's ever a fraction of a percent left over from rounding, it's added to whoever has the largest share, so the visible adjustment is as small as possible and the total is never "approximately" 15% — it's always exactly 15%.</p>
+  </section>
+
+  <section class="block">
+    <h2>Vesting — the part most first-time founders skip</h2>
+    <p id="doc-vesting-note" class="muted"></p>
+    <p>The equity % on the live sheet is a <strong>target</strong> — what someone would eventually hold if they stay the full course. Vesting decides how much of that target they'd actually keep if they left <em>today</em>:</p>
+    <ul>
+      <li>Leave before the 12-month cliff → <strong>0%</strong>, regardless of points earned.</li>
+      <li>Leave after the cliff but before month 48 → a straight-line proportion (e.g. 24 months in = 50% of their target locked in).</li>
+      <li>Stay the full 48 months → the full computed percentage.</li>
+    </ul>
+    <p>Without this, a real and common failure mode plays out: someone earns a meaningful points-based allocation, leaves after two months, and keeps all of it forever — "dead equity" that doesn't represent anyone's current effort and can scare off a future investor. The cliff and schedule exist specifically to prevent that.</p>
+  </section>
+
+  <section class="block">
+    <h2>What "transparency" means here — and what it doesn't</h2>
+    <p>This page has no login and no per-person permissions — whoever can open the file can edit everything in it. That's fine for a founder's own working tool; it is <strong>not</strong> something to hand to the whole team as a live, editable page.</p>
+    <p>"Transparent" is meant to mean: the formula above is open, every entry's calculation is inspectable, and every deduction carries a written reason. In practice, share it as: this explanation (so the method is never a mystery), each person's own exported row or a printed Plan Agreement (so they see their actual number), not the raw editable file itself.</p>
+  </section>
+
+  <section class="block">
+    <h2>One honest limit</h2>
+    <p>This tool gets you to a fair, explainable <em>number</em>. It is not a substitute for actual paperwork. Before any of this becomes real ownership, get a CA or company secretary to set up the proper instrument — typically an ESOP for non-founder team members in an Indian company, or direct (sweat) equity shares if that's the route you choose, each with its own compliance and tax treatment. This tool decides <em>who gets what</em>; a professional should decide <em>how it's legally issued</em>.</p>
+  </section>
+
+</section>
+
+<!-- ======================= TAB 3 — IDEAS & ROADMAP ======================= -->
+<section id="panel-ideas" role="tabpanel" aria-labelledby="tab-ideas-btn" class="panel" hidden>
+
+  <section class="block">
+    <h2>Ideas worth considering next</h2>
+    <p class="muted">Not built into the tool yet — each of these is a genuine option with a real trade-off, not an obvious upgrade. Pick deliberately rather than adding all of them.</p>
+
+    <details class="idea-card">
+      <summary>Peer recognition / kudos</summary>
+      <p>Let teammates flag a colleague's good work (not rate their own). A small, capped bonus for someone who gets multiple unprompted shout-outs in a period catches good work a founder alone might miss, and it starts to correct for single-rater bias — right now you are the only person scoring Quality.</p>
+      <p class="muted">Trade-off: needs a way for each person to submit something without needing to log in as themselves. Keep the bonus small and capped so it can't become a popularity contest.</p>
+    </details>
+
+    <details class="idea-card">
+      <summary>Point decay for very old work</summary>
+      <p>Weight recent contribution slightly more than work from a year ago, so the split reflects who is driving the company <em>now</em>, not just who joined earliest.</p>
+      <p class="muted">Trade-off: this can feel unfair to someone who did real heavy lifting early and then intentionally moved to a steadier pace — decide if "recency" or "cumulative effort" is the value you actually want to reward before turning this on.</p>
+    </details>
+
+    <details class="idea-card">
+      <summary>Minimum equity floor</summary>
+      <p>Guarantee everyone on the roster at least some small % (say 0.5%) once they've logged any reviewed work at all, so a quiet early contributor never shows literally 0.0%.</p>
+      <p class="muted">Trade-off: floors have to come from somewhere — either the pool caps slightly below 15% in reserve, or the floor is funded by trimming the largest shares. Decide which before adding it.</p>
+    </details>
+
+    <details class="idea-card">
+      <summary>A standing quarterly review ritual</summary>
+      <p>The tool computes a number; it doesn't create the habit of looking at it. Put 20 minutes on the calendar every quarter to walk through the Work Log and Deductions together (as a process review, not a public shaming session) before generating the next Plan Agreement.</p>
+    </details>
+
+    <details class="idea-card">
+      <summary>New hires joining after the first agreement</summary>
+      <p>Decide now, in writing, whether a new team member later draws from a freshly-reserved slice of the pool, or whether the <em>next</em> agreement re-splits the whole 15% from scratch including them. The second option quietly dilutes everyone who's already vesting — most teams prefer the first.</p>
+    </details>
+
+    <details class="idea-card">
+      <summary>Export a per-person statement</summary>
+      <p>A "my numbers" view — one teammate's own entries, deductions and running total, exportable as a clean one-page PDF via the browser's own Print dialog — is a lighter-weight way to give someone their own transparency without handing over the whole editable ledger.</p>
+    </details>
+  </section>
+
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <p>Internal tool · data stays in this browser only · not a legal document</p>
+</footer>
+
+<!-- ======================= DIALOGS ======================= -->
+<dialog id="dlg-breakdown" closedby="any">
+  <div id="breakdown-body"></div>
+  <form method="dialog"><button type="submit" class="btn-primary">Close</button></form>
+</dialog>
+
+<dialog id="dlg-confirm" closedby="any">
+  <p id="confirm-message"></p>
+  <form method="dialog" class="dialog-actions">
+    <button type="submit" value="no" class="btn-ghost">Cancel</button>
+    <button type="submit" value="yes" class="btn-primary btn-danger-fill">Confirm</button>
+  </form>
+</dialog>
+
+<!-- Populated only at print time; hidden otherwise -->
+<div id="print-area"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
